@@ -1,0 +1,99 @@
+name: Build and Release APK
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradlew Executable
+        run: chmod +x ./gradlew
+
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore my-upload-key.jks \
+            -alias upload \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=StellarStrike,OU=Mobile,O=Games,C=US"
+
+      - name: Build Release and Debug APK
+        env:
+          STORE_PASSWORD: android
+          KEY_PASSWORD: android
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+        run: |
+          ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
+
+      - name: Organize APK Assets
+        run: |
+          mkdir -p release_assets
+          # Find and copy uncompressed APKs
+          find app/build/outputs/apk/release -name "*.apk" -exec cp {} release_assets/StellarStrike-v1.0.0-release.apk \;
+          find app/build/outputs/apk/debug -name "*.apk" -exec cp {} release_assets/StellarStrike-v1.0.0-debug.apk \;
+          echo "=== Built APK files ==="
+          ls -lh release_assets/
+
+      - name: Publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            TAG_NAME="v1.0.0"
+          fi
+
+          echo "Publishing release for tag: ${TAG_NAME}"
+
+          # Create git tag if it does not exist
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}" || true
+          git push origin "${TAG_NAME}" || true
+
+          # If release exists, upload uncompressed APKs to it, otherwise create new release
+          if gh release view "${TAG_NAME}" > /dev/null 2>&1; then
+            echo "Release ${TAG_NAME} already exists. Uploading uncompressed APKs..."
+            gh release upload "${TAG_NAME}" release_assets/StellarStrike-v1.0.0-release.apk release_assets/StellarStrike-v1.0.0-debug.apk --clobber
+          else
+            echo "Creating new release ${TAG_NAME} with uncompressed APKs..."
+            gh release create "${TAG_NAME}" \
+              release_assets/StellarStrike-v1.0.0-release.apk \
+              release_assets/StellarStrike-v1.0.0-debug.apk \
+              --title "Stellar Strike ${TAG_NAME}" \
+              --notes "## 🚀 Stellar Strike: Cosmic Vanguard
+
+          Fantastic retro-modern arcade cosmic defense game for Android!
+
+          ### 📦 Direct Downloads (Uncompressed APKs):
+          - **[StellarStrike-v1.0.0-release.apk](StellarStrike-v1.0.0-release.apk)** — Signed Release APK
+          - **[StellarStrike-v1.0.0-debug.apk](StellarStrike-v1.0.0-debug.apk)** — Debug APK for testing"
+          fi

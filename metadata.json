@@ -1,0 +1,6 @@
+{
+  "name": "Stellar Strike",
+  "description": "Fantastic cosmic arcade space defense game featuring touch starfighter combat, boss battles, power-ups, upgrades, and sound synth.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
