@@ -33,8 +33,9 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x ./gradlew
 
-      - name: Generate Release Keystore
+      - name: Generate Keystores
         run: |
+          # Generate upload key for release APK
           keytool -genkeypair -v \
             -keystore my-upload-key.jks \
             -alias upload \
@@ -44,6 +45,17 @@ jobs:
             -storepass android \
             -keypass android \
             -dname "CN=StellarStrike,OU=Mobile,O=Games,C=US"
+
+          # Generate debug keystore for debug APK
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Build Release and Debug APK
         env:
@@ -73,13 +85,7 @@ jobs:
 
           echo "Publishing release for tag: ${TAG_NAME}"
 
-          # Create git tag if it does not exist
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}" || true
-          git push origin "${TAG_NAME}" || true
-
-          # If release exists, upload uncompressed APKs to it, otherwise create new release
+          # If release exists, upload uncompressed APKs to it; otherwise create new release
           if gh release view "${TAG_NAME}" > /dev/null 2>&1; then
             echo "Release ${TAG_NAME} already exists. Uploading uncompressed APKs..."
             gh release upload "${TAG_NAME}" release_assets/StellarStrike-v1.0.0-release.apk release_assets/StellarStrike-v1.0.0-debug.apk --clobber
@@ -88,12 +94,13 @@ jobs:
             gh release create "${TAG_NAME}" \
               release_assets/StellarStrike-v1.0.0-release.apk \
               release_assets/StellarStrike-v1.0.0-debug.apk \
+              --target "${GITHUB_SHA}" \
               --title "Stellar Strike ${TAG_NAME}" \
               --notes "## 🚀 Stellar Strike: Cosmic Vanguard
 
-          Fantastic retro-modern arcade cosmic defense game for Android!
+          Retro-modern arcade cosmic defense game for Android!
 
           ### 📦 Direct Downloads (Uncompressed APKs):
-          - **[StellarStrike-v1.0.0-release.apk](StellarStrike-v1.0.0-release.apk)** — Signed Release APK
-          - **[StellarStrike-v1.0.0-debug.apk](StellarStrike-v1.0.0-debug.apk)** — Debug APK for testing"
+          - **StellarStrike-v1.0.0-release.apk** — Signed Release APK
+          - **StellarStrike-v1.0.0-debug.apk** — Debug APK for testing"
           fi
