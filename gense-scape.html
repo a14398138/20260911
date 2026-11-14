@@ -98,19 +98,20 @@ function paintSky(){
     } else { const u=(t-0.62)/0.38;
       col = mix(PAL.sunBand[2], PAL.horizon[0], Math.pow(u,0.8));
     }
-    // 空気の揺らぎ:バンドごとに色をわずかに混ぜる
+    // 空気の揺らぎ:バンドごとに色をわずかに混ぜる(滑らかに重ねる)
     const n = fbm(t*4, 7.3, 40, 4);
-    col = shade(colHex(col), Math.floor((n-0.5)*26));
+    col = shade(colHex(col), Math.floor((n-0.5)*10));
     g.fillStyle = col;
-    g.fillRect(0, y-4, W, 9);
+    g.fillRect(0, y-6, W, 13);
   }
-  // 太陽のにじみ(中心の光)
+  // 太陽のにじみ:滑らかな放射グラデーションで(縞を防ぐ)
   const sunX = W*0.68, sunY = H*0.615;
-  for(let i=0;i<220;i++){
-    const r = i*3.2;
-    brush(sunX + rr(-8,8), sunY + rr(-6,6), r*1.6, r*0.9, 0,
-      rgba("#ffdf9e", 0.012 + (1-i/220)*0.008));
-  }
+  const glow = g.createRadialGradient(sunX, sunY, 10, sunX, sunY, 340);
+  glow.addColorStop(0, "rgba(255,226,158,0.55)");
+  glow.addColorStop(0.35, "rgba(255,216,140,0.22)");
+  glow.addColorStop(1, "rgba(255,210,140,0)");
+  g.fillStyle = glow;
+  g.fillRect(sunX-360, sunY-360, 720, 720);
   brush(sunX, sunY, 46, 40, 0, "#fff3d0", 0.9);
   brush(sunX, sunY, 30, 26, 0, "#fffaea", 0.95);
 }
@@ -413,20 +414,36 @@ function paintTrain(){
   for(let x=W*0.52;x<W*0.98;x+=4){
     brush(x, ty+rr(-2,2), rr(6,12), rr(2,4), rr(-0.02,0.02), shade("#8a8a4a", ri(-14,14)), 0.5);
   }
-  // 車体:夕陽を反射する
+  // 車体:直線的な矩形で描く古い気動車
   const cars = 4;
+  const cw = 66, chh = 11, gap = 8;
   for(let i=0;i<cars;i++){
-    const cw = 46, chh = 9;
-    const x = tx0 + i*(cw+7), y = ty - 7;
-    brush(x+cw/2, y, cw*0.55, chh*0.6, 0, shade("#b8452e", ri(-10,10)), 0.95);
-    brush(x+cw*0.3, y-1, cw*0.3, chh*0.35, 0, "#e8b06a", 0.8); // 窓の反対光
-    for(let w=0;w<4;w++){
-      brush(x+8+w*10, y-1, 3, 2.4, 0, "#ffe2a8", 0.9); // 点灯する窓
+    const x = tx0 + i*(cw+gap), y = ty - 14;
+    g.globalAlpha = 0.95;
+    g.fillStyle = shade("#b8452e", ri(-8,8));
+    g.fillRect(x, y, cw, chh);
+    g.fillStyle = "#d86a3e"; g.fillRect(x, y, cw, 2.5);          // 屋根のライン
+    g.fillStyle = "#7a2e1e"; g.fillRect(x, y+chh-2.5, cw, 2.5);  // 裾の影
+    for(let w=0;w<5;w++){
+      g.fillStyle = "#ffe2a8";
+      g.fillRect(x+7+w*11, y+3.5, 6, 4.5);                        // 点灯する窓
     }
-    brush(x+cw*0.5, y+chh*0.55, cw*0.5, 2, 0, "#3a3028", 0.8); // 台車の影
+    g.fillStyle = "#2c2620";                                      // 車輪
+    g.beginPath(); g.arc(x+12, y+chh, 3, 0, Math.PI*2); g.fill();
+    g.beginPath(); g.arc(x+cw-12, y+chh, 3, 0, Math.PI*2); g.fill();
+    g.globalAlpha = 1;
   }
-  // 駆動部
-  brush(tx0-8, ty-7, 5, 5, 0, "#8a3a26", 0.9);
+  // 先頭車:運転室とヘッドライト
+  {
+    const hx = tx0 - 6, hy = ty - 14;
+    g.globalAlpha = 0.95;
+    g.fillStyle = shade("#a83c28", ri(-6,6));
+    g.fillRect(hx, hy, 16, chh);
+    g.fillStyle = "#ffe9c0"; g.fillRect(hx+2, hy+3, 5, 5);         // 運転席の窓
+    g.fillStyle = "#fff8e0";
+    g.beginPath(); g.arc(hx-1, hy+chh-4, 2, 0, Math.PI*2); g.fill();
+    g.globalAlpha = 1;
+  }
   // 線路のキラメキ
   for(let x=W*0.52;x<W*0.98;x+=5){
     brush(x, ty+3, 4, 1.2, 0, "#e8c88a", 0.5);
